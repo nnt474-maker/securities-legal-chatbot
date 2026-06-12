@@ -46,6 +46,7 @@ const I18N = {
     enterHint: "để gửi",
     shiftEnter: "xuống dòng",
     error: "Không kết nối được tới máy chủ. Kiểm tra cấu hình webhook.",
+    errorTimeout: "Câu hỏi này xử lý lâu hơn 5 phút nên đã dừng chờ. Bạn gửi lại câu hỏi — lần hỏi lại thường trả lời nhanh hơn.",
     notConfigured: "Chưa cấu hình webhook n8n. Mở Cài đặt để dán URL.",
     you: "Bạn",
     bot: "PHS Legal",
@@ -101,6 +102,7 @@ const I18N = {
     enterHint: "to send",
     shiftEnter: "newline",
     error: "Couldn't reach the server. Check webhook configuration.",
+    errorTimeout: "This question took longer than the 5-minute limit, so the wait was stopped. Please resend — retries usually complete faster.",
     notConfigured: "n8n webhook not configured. Open Settings to paste the URL.",
     you: "You",
     bot: "PHS Legal",
@@ -479,6 +481,10 @@ function App() {
       }));
     };
 
+    // Câu pháp lý nặng đo được tới ~200s giờ nghẽn — chờ tối đa 300s rồi báo rõ, không để trình duyệt tự cắt mơ hồ.
+    const FETCH_TIMEOUT_MS = 300000;
+    const abortCtl = new AbortController();
+    const fetchTimer = setTimeout(() => abortCtl.abort(), FETCH_TIMEOUT_MS);
     try {
       const res = await fetch(webhook, {
         method: "POST",
@@ -490,6 +496,7 @@ function App() {
           lang,
           message: text,
         }),
+        signal: abortCtl.signal,
       });
       if (!res.ok) throw new Error("HTTP " + res.status);
       const ctype = res.headers.get("content-type") || "";
@@ -501,8 +508,9 @@ function App() {
       finishWith({ content: cleanAnswer, suggestions, timestamp: replyTs });
     } catch (e) {
       console.error(e);
-      finishWith({ error: true, content: t.error });
+      finishWith({ error: true, content: e && e.name === "AbortError" ? t.errorTimeout : t.error });
     } finally {
+      clearTimeout(fetchTimer);
       setSending(false);
     }
   };

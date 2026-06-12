@@ -1,31 +1,35 @@
 /* =====================================================================
    PHS Legal — Fintech UI
-   Inspired by PHS brand red, financial-dashboard chrome
+   Palette 20 năm PHS (20years.phs.vn): xanh lá #24723B · vàng #B0862D ·
+   trắng · hồng kỷ niệm — thay tông đỏ/đen cũ
    ===================================================================== */
 
 :root {
   /* Brand */
-  --brand: #C8102E;             /* PHS red */
-  --brand-deep: #A00C24;
-  --brand-50: #FFEEF1;
-  --brand-100: #FBD4DB;
-  --gold: #B58838;
+  --brand: #24723B;             /* PHS green */
+  --brand-deep: #1B5A2E;
+  --brand-50: #EDF4E9;
+  --brand-100: #D7E6D3;
+  --gold: #B0862D;
+  --pink: #D26487;              /* hồng kỷ niệm 20 năm */
+  --pink-deep: #B14A6C;
+  --pink-soft: #FBE9F0;
 
   /* Structure */
-  --navy: #0B1320;              /* sidebar */
-  --navy-80: #16203A;
-  --navy-60: #2C3958;
-  --ink: #0F1419;
-  --ink-soft: #38414C;
-  --mute: #6B7280;
-  --mute-soft: #9AA3AF;
-  --line: #E4E7EB;
-  --line-soft: #EEF0F3;
+  --navy: #142E1D;              /* sidebar — xanh lá sẫm */
+  --navy-80: #1D4128;
+  --navy-60: #2F5C3C;
+  --ink: #101813;
+  --ink-soft: #36433A;
+  --mute: #68766C;
+  --mute-soft: #9AA89E;
+  --line: #E2E8E2;
+  --line-soft: #EDF1EC;
 
   /* Surfaces */
-  --page: #F7F8FA;
+  --page: #F6F8F4;
   --surface: #FFFFFF;
-  --surface-2: #FCFCFD;
+  --surface-2: #FCFDFC;
 
   /* Status */
   --green: #0E8345;
@@ -114,7 +118,7 @@ pre code { background: none; padding: 0; color: inherit; }
   position: absolute;
   inset: 0 0 auto 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--brand) 0%, var(--brand) 35%, var(--gold) 35%, var(--gold) 38%, var(--brand) 38%);
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand) 58%, var(--gold) 58%, var(--gold) 76%, var(--pink) 76%, var(--pink) 88%, var(--brand-100) 88%);
 }
 .brand {
   display: flex;
@@ -208,7 +212,7 @@ pre code { background: none; padding: 0; color: inherit; }
   border-radius: 3px;
   transition: color 0.12s, background 0.12s;
 }
-.lang-btn.is-active { background: var(--ink); color: #fff; }
+.lang-btn.is-active { background: var(--brand); color: #fff; }
 .icon-btn {
   width: 30px;
   height: 30px;
@@ -226,7 +230,7 @@ pre code { background: none; padding: 0; color: inherit; }
 .sidebar {
   grid-area: sidebar;
   background: var(--navy);
-  color: #B8C2D2;
+  color: #BFD0C2;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -258,13 +262,13 @@ pre code { background: none; padding: 0; color: inherit; }
   font-size: 10px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: #5C6B85;
+  color: #6E8A76;
   padding: 14px 16px 8px;
   display: flex;
   justify-content: space-between;
 }
 .sidebar-label span:last-child {
-  color: #7B8AA3;
+  color: #8FA995;
   font-weight: 500;
 }
 
@@ -279,7 +283,7 @@ pre code { background: none; padding: 0; color: inherit; }
 }
 .history-empty {
   padding: 14px 14px 0;
-  color: #5C6B85;
+  color: #6E8A76;
   font-size: 12px;
   line-height: 1.5;
 }
@@ -291,7 +295,7 @@ pre code { background: none; padding: 0; color: inherit; }
   padding: 8px 10px;
   border-radius: var(--r-sm);
   text-align: left;
-  color: #B8C2D2;
+  color: #BFD0C2;
   transition: background 0.1s, color 0.1s;
   position: relative;
 }
@@ -318,10 +322,10 @@ pre code { background: none; padding: 0; color: inherit; }
 .history-meta {
   font-family: var(--mono);
   font-size: 10px;
-  color: #5C6B85;
+  color: #6E8A76;
   flex-shrink: 0;
 }
-.history-item.is-active .history-meta { color: #8B97AE; }
+.history-item.is-active .history-meta { color: #9DB3A2; }
 .history-del {
   position: absolute;
   right: 6px;
@@ -332,11 +336,11 @@ pre code { background: none; padding: 0; color: inherit; }
   display: none;
   align-items: center;
   justify-content: center;
-  color: #5C6B85;
+  color: #6E8A76;
   border-radius: 3px;
 }
 .history-item:hover .history-del { display: flex; }
-.history-del:hover { background: var(--brand); color: #fff; }
+.history-del:hover { background: var(--pink-deep); color: #fff; }
 .history-item:hover .history-meta { display: none; }
 
 .sidebar-foot {
@@ -349,12 +353,12 @@ pre code { background: none; padding: 0; color: inherit; }
 .foot-name {
   font-size: 12.5px;
   font-weight: 600;
-  color: #E7ECF3;
+  color: #EAF2EB;
 }
 .foot-sub {
   font-family: var(--mono);
   font-size: 10.5px;
-  color: #5C6B85;
+  color: #6E8A76;
   letter-spacing: 0.02em;
 }
 
@@ -403,7 +407,7 @@ pre code { background: none; padding: 0; color: inherit; }
   letter-spacing: 0.08em;
   text-transform: uppercase;
   border-radius: var(--r-xs);
-  border: 1px solid #F2C9D1;
+  border: 1px solid #CFE2C8;
 }
 .welcome-tag-dot {
   width: 5px;
@@ -489,7 +493,7 @@ pre code { background: none; padding: 0; color: inherit; }
 }
 .suggest-card:hover {
   border-color: var(--brand);
-  box-shadow: 0 1px 0 var(--brand-50), 0 4px 12px -6px rgba(200, 16, 46, 0.18);
+  box-shadow: 0 1px 0 var(--brand-50), 0 4px 12px -6px rgba(36, 114, 59, 0.16);
 }
 .suggest-card:active { transform: translateY(1px); }
 .suggest-num {
@@ -538,7 +542,7 @@ pre code { background: none; padding: 0; color: inherit; }
 }
 .msg-bubble-user {
   max-width: 78%;
-  background: var(--ink);
+  background: var(--navy-80);
   color: #fff;
   padding: 10px 14px;
   border-radius: var(--r) var(--r) 2px var(--r);
@@ -651,8 +655,8 @@ pre code { background: none; padding: 0; color: inherit; }
 }
 
 .msg-error {
-  background: var(--brand-50);
-  color: var(--brand-deep);
+  background: var(--pink-soft);
+  color: var(--pink-deep);
   border: 1px solid #F2C9D1;
   padding: 10px 14px;
   border-radius: var(--r);
@@ -869,8 +873,8 @@ pre code { background: none; padding: 0; color: inherit; }
    ===================================================================== */
 .statusbar {
   grid-area: status;
-  background: var(--ink);
-  color: #B8C2D2;
+  background: var(--navy);
+  color: #BFD0C2;
   display: flex;
   align-items: center;
   padding: 0 14px;
@@ -888,12 +892,12 @@ pre code { background: none; padding: 0; color: inherit; }
   white-space: nowrap;
 }
 .status-cell .label {
-  color: #5C6B85;
+  color: #6E8A76;
   text-transform: uppercase;
   font-size: 9.5px;
   letter-spacing: 0.1em;
 }
-.status-cell .value { color: #E7ECF3; font-weight: 500; }
+.status-cell .value { color: #EAF2EB; font-weight: 500; }
 .status-cell.brand .value { color: var(--brand-50); }
 .status-dot {
   width: 7px;
@@ -924,7 +928,7 @@ pre code { background: none; padding: 0; color: inherit; }
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(11, 19, 32, 0.55);
+  background: rgba(16, 32, 21, 0.55);
   backdrop-filter: blur(3px);
   display: grid;
   place-items: center;
@@ -939,7 +943,7 @@ pre code { background: none; padding: 0; color: inherit; }
   padding: 24px 24px 20px;
   max-width: 480px;
   width: 100%;
-  box-shadow: 0 24px 60px rgba(11, 19, 32, 0.25);
+  box-shadow: 0 24px 60px rgba(16, 32, 21, 0.25);
   animation: pop-in 0.18s;
 }
 .modal-title {
@@ -1059,7 +1063,7 @@ pre code { background: none; padding: 0; color: inherit; }
   .sidebar-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(11, 19, 32, 0.4);
+    background: rgba(16, 32, 21, 0.4);
     z-index: 25;
     animation: fade-in 0.15s;
   }
