@@ -8,6 +8,9 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 // gọi thẳng từ domain Vercel không bị chặn.
 const WEBHOOK_URL = "https://n8n.phs.vn/webhook/PHS-legal-chat";
 const APP_VERSION = "1.0.0";
+// Quy mô kho văn bản hiển thị ở màn hình chào + thanh trạng thái.
+// Cập nhật tay khi nạp thêm văn bản (xem bảng legal_source_catalog).
+const CORPUS = { docs: 47, chunks: 4891 };
 
 const I18N = {
   vi: {
@@ -33,6 +36,14 @@ const I18N = {
     ],
     inputPlaceholder: "Nhập câu hỏi pháp lý của bạn…",
     thinking: "Đang tra cứu văn bản pháp luật",
+    thinkingStages: [
+      "Đang phân tích câu hỏi",
+      "Đang tra cứu văn bản pháp luật",
+      "Đang đối chiếu điều khoản liên quan",
+      "Đang kiểm chứng căn cứ pháp lý",
+      "Đang soạn câu trả lời",
+    ],
+    thinkingLong: "Câu hỏi phức tạp — hệ thống đang đối chiếu nhiều văn bản, có thể mất vài phút.",
     relatedLabel: "Câu hỏi liên quan",
     newChat: "Cuộc trò chuyện mới",
     history: "Lịch sử",
@@ -65,6 +76,12 @@ const I18N = {
     poweredBy: "Phú Hưng Securities · 2026",
     statusModel: "Bedrock Titan + RAG",
     statusEnv: "PROD",
+    statusCorpus: "KHO",
+    statDocs: "văn bản pháp luật",
+    statChunks: "trích đoạn chỉ mục",
+    statLangValue: "VI · EN",
+    statLang: "song ngữ",
+    badge20: "20 NĂM",
   },
   en: {
     appName: "PHS LEGAL",
@@ -89,6 +106,14 @@ const I18N = {
     ],
     inputPlaceholder: "Ask a legal question…",
     thinking: "Searching legal documents",
+    thinkingStages: [
+      "Analyzing your question",
+      "Searching legal documents",
+      "Cross-checking related articles",
+      "Verifying legal grounds",
+      "Composing the answer",
+    ],
+    thinkingLong: "Complex question — the system is cross-checking multiple documents. This can take a few minutes.",
     relatedLabel: "Related questions",
     newChat: "New conversation",
     history: "History",
@@ -121,6 +146,12 @@ const I18N = {
     poweredBy: "Phu Hung Securities · 2026",
     statusModel: "Bedrock Titan + RAG",
     statusEnv: "PROD",
+    statusCorpus: "CORPUS",
+    statDocs: "legal documents",
+    statChunks: "indexed passages",
+    statLangValue: "VI · EN",
+    statLang: "bilingual",
+    badge20: "20 YRS",
   },
 };
 
@@ -162,6 +193,16 @@ function mdToHtml(src) {
     return "<p>" + b.replace(/\n/g, "<br>") + "</p>";
   });
   return blocks.join("\n");
+}
+
+// Tô sáng trích dẫn pháp lý trong HTML đã render: "Điều 42", "Điều 8b khoản 2",
+// "155/2020/NĐ-CP", "17/VBHN-BTC"… Chỉ xử lý phần chữ nằm ngoài thẻ HTML.
+const LAW_REF_RE = /(\d+\/\d{4}\/(?:NĐ-CP|TT-BTC|TT-NHNN|QĐ-TTg|QH\d+|UBTVQH\d+)|\d+\/VBHN-[A-ZĐ]+|(?:Điều|điều|Article)\s+\d+[a-zđ]?(?:\s+[kK]hoản\s+\d+)?)/g;
+function highlightLawRefs(html) {
+  return String(html)
+    .split(/(<[^>]*>)/)
+    .map(seg => (seg.startsWith("<") ? seg : seg.replace(LAW_REF_RE, '<span class="law-ref">$1</span>')))
+    .join("");
 }
 
 function extractSuggestions(data) {
@@ -243,13 +284,30 @@ function TypingDots() {
   return <span className="typing"><span></span><span></span><span></span></span>;
 }
 
-function ThinkingTicker() {
-  const [s, setS] = useState(0);
+// Thẻ chờ: nhãn giai đoạn xoay vòng theo pipeline thật (phân tích → tra cứu →
+// đối chiếu → kiểm chứng → soạn), thanh tiến trình quét + đồng hồ mm:ss.
+// Mốc thời gian là ước lượng hiển thị, không phải telemetry từ máy chủ.
+function ThinkingCard({ t }) {
+  const [sec, setSec] = useState(0);
   useEffect(() => {
-    const i = setInterval(() => setS(x => x + 1), 1000);
+    const i = setInterval(() => setSec(x => x + 1), 1000);
     return () => clearInterval(i);
   }, []);
-  return <span className="thinking-tick">{String(s).padStart(2, "0")}s</span>;
+  const stages = t.thinkingStages;
+  const stageIdx = Math.min(Math.floor(sec / 9), stages.length - 1);
+  const mm = String(Math.floor(sec / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
+  return (
+    <div className="msg-thinking">
+      <div className="thinking-row">
+        <TypingDots />
+        <span className="thinking-label" key={stageIdx}>{stages[stageIdx]}…</span>
+        <span className="thinking-tick">{mm}:{ss}</span>
+      </div>
+      <div className="progress-track"><div className="progress-bar"></div></div>
+      {sec >= 90 && <div className="thinking-note">{t.thinkingLong}</div>}
+    </div>
+  );
 }
 
 function Message({ msg, t, onSuggestionClick }) {
@@ -272,7 +330,7 @@ function Message({ msg, t, onSuggestionClick }) {
 
   return (
     <div className="msg msg-bot">
-      <div className="msg-avatar">L</div>
+      <div className="msg-avatar">§</div>
       <div className="msg-body">
         <div className="msg-meta">
           <span className="msg-author">{t.bot}</span>
@@ -281,16 +339,12 @@ function Message({ msg, t, onSuggestionClick }) {
         </div>
 
         {msg.loading ? (
-          <div className="msg-thinking">
-            <TypingDots />
-            <span className="thinking-label">{t.thinking}…</span>
-            <ThinkingTicker />
-          </div>
+          <ThinkingCard t={t} />
         ) : msg.error ? (
           <div className="msg-error">{msg.content}</div>
         ) : (
           <>
-            <div className="msg-prose" dangerouslySetInnerHTML={{ __html: mdToHtml(msg.content) }} />
+            <div className="msg-prose" dangerouslySetInnerHTML={{ __html: highlightLawRefs(mdToHtml(msg.content)) }} />
             {msg.suggestions && msg.suggestions.length > 0 && (
               <div className="related">
                 <div className="related-label">{t.relatedLabel}</div>
@@ -318,28 +372,78 @@ function Message({ msg, t, onSuggestionClick }) {
   );
 }
 
-function Welcome({ t, onSuggestion }) {
+// Số đếm tăng dần khi mở màn hình chào (tôn trọng prefers-reduced-motion)
+function useCountUp(target, duration = 1100) {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setVal(target);
+      return;
+    }
+    let raf;
+    const t0 = performance.now();
+    const tick = (now) => {
+      const p = Math.min((now - t0) / duration, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setVal(Math.round(target * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return val;
+}
+
+function StatCell({ value, label, lang }) {
+  const n = useCountUp(value);
+  return (
+    <div className="stat">
+      <div className="stat-value">{n.toLocaleString(lang === "vi" ? "vi-VN" : "en-US")}</div>
+      <div className="stat-label">{label}</div>
+    </div>
+  );
+}
+
+function Welcome({ t, lang, onSuggestion }) {
   return (
     <div className="welcome">
-      <div className="welcome-header">
+      <div className="aura aura-a"></div>
+      <div className="aura aura-b"></div>
+      <div className="welcome-mark" aria-hidden="true">§</div>
+
+      <div className="welcome-header fx fx-1">
         <span className="welcome-tag">
           <span className="welcome-tag-dot"></span>
           {t.welcomeBadge}
         </span>
         <span className="welcome-meta">{t.welcomeMeta}</span>
       </div>
-      <h1 className="welcome-title">
+      <h1 className="welcome-title fx fx-2">
         {t.welcomeTitleA} <span className="accent">{t.welcomeTitleAccent}</span> {t.welcomeTitleB}
       </h1>
-      <p className="welcome-body">{t.welcomeBody}</p>
+      <p className="welcome-body fx fx-3">{t.welcomeBody}</p>
 
-      <div className="suggest-header">
+      <div className="hero-stats fx fx-4">
+        <StatCell value={CORPUS.docs} label={t.statDocs} lang={lang} />
+        <StatCell value={CORPUS.chunks} label={t.statChunks} lang={lang} />
+        <div className="stat">
+          <div className="stat-value">{t.statLangValue}</div>
+          <div className="stat-label">{t.statLang}</div>
+        </div>
+      </div>
+
+      <div className="suggest-header fx fx-5">
         <div className="suggest-title">{t.suggestionsLabel}</div>
         <div className="suggest-count">{t.suggestionsCount}</div>
       </div>
       <div className="suggest-grid">
         {t.suggestions.map((s, i) => (
-          <button key={i} className="suggest-card" onClick={() => onSuggestion(s)}>
+          <button
+            key={i}
+            className="suggest-card"
+            style={{ animationDelay: (0.3 + i * 0.05).toFixed(2) + "s" }}
+            onClick={() => onSuggestion(s)}
+          >
             <span className="suggest-num">{String(i + 1).padStart(2, "0")}</span>
             <span className="suggest-text">{s}</span>
             <span className="suggest-arrow"><Icon.Arrow /></span>
@@ -547,6 +651,7 @@ function App() {
             <div className="brand-name">{t.appName}</div>
             <div className="brand-sub">{t.appSubtitle}</div>
           </div>
+          <span className="badge-20y" title="20 năm Phú Hưng Securities">{t.badge20}</span>
         </div>
         <div className="topbar-main">
           <div className="crumbs">
@@ -606,7 +711,7 @@ function App() {
         <div className="scroll" ref={scrollRef}>
           <div className="container">
             {!hasMessages ? (
-              <Welcome t={t} onSuggestion={(s) => send(s)} />
+              <Welcome t={t} lang={lang} onSuggestion={(s) => send(s)} />
             ) : (
               <div className="messages">
                 {messages.map(m => (
@@ -669,10 +774,15 @@ function App() {
           <span className="label">ENV</span>
           <span className="value">{t.statusEnv}</span>
         </div>
-        <div className="status-divider hide-sm"></div>
-        <div className="status-cell hide-sm">
+        <div className="status-divider hide-md hide-sm"></div>
+        <div className="status-cell hide-md hide-sm">
           <span className="label">MODEL</span>
           <span className="value">{t.statusModel}</span>
+        </div>
+        <div className="status-divider hide-md hide-sm"></div>
+        <div className="status-cell hide-md hide-sm">
+          <span className="label">{t.statusCorpus}</span>
+          <span className="value">{CORPUS.docs} VB · {(CORPUS.chunks / 1000).toFixed(1)}K</span>
         </div>
         <div className="status-spacer"></div>
         <div className="status-cell brand">
