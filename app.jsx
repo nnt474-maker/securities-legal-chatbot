@@ -10,7 +10,7 @@ const WEBHOOK_URL = "https://n8n.phs.vn/webhook/PHS-legal-chat";
 const APP_VERSION = "1.0.0";
 // Quy mô kho văn bản hiển thị ở màn hình chào + thanh trạng thái.
 // Cập nhật tay khi nạp thêm văn bản (xem bảng legal_source_catalog).
-const CORPUS = { docs: 47, chunks: 4564 };
+const CORPUS = { docs: 65, chunks: 6654 };
 
 const I18N = {
   vi: {
