@@ -1277,3 +1277,80 @@ pre code { background: none; padding: 0; color: inherit; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* =====================================================================
+   CITE TOOLTIP (đợt 7) — popup nội dung điều/khoản khi rê chuột / chạm
+   ===================================================================== */
+.msg-prose .law-ref.cite {
+  cursor: pointer;
+  border-bottom: 1px dashed var(--gold);
+}
+.msg-prose .law-ref.cite:hover,
+.msg-prose .law-ref.cite:focus-visible {
+  background: #F2E7C8;
+  outline: none;
+}
+
+.cite-pop {
+  display: none;
+  position: fixed;
+  z-index: 500;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-top: 2px solid var(--gold);
+  border-radius: var(--r);
+  box-shadow: 0 10px 30px rgba(16, 24, 19, 0.16);
+  padding: 12px 14px;
+  font-family: var(--sans);
+}
+.cite-pop.is-open { display: block; }
+
+.cite-pop-head {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: #6F541A;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.cite-pop-title {
+  font-family: var(--serif);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.cite-pop-body {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 6px;
+}
+.cite-pop-note {
+  font-size: 11px;
+  color: var(--mute);
+  font-style: italic;
+  margin-bottom: 4px;
+}
+.cite-pop-foot {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 10.5px;
+  color: var(--mute-soft);
+}
+.cite-pop-loading,
+.cite-pop-notfound {
+  font-size: 12.5px;
+  color: var(--mute);
+}
+.cite-pop-notfound { color: var(--ink-soft); }
+
+@media (max-width: 480px) {
+  .cite-pop { padding: 10px 12px; }
+  .cite-pop-body { max-height: 190px; }
+}

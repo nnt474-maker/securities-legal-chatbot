@@ -51,6 +51,7 @@ Hỗ trợ markdown: **bold**, *italic*, `code`, headings, lists, links, blockqu
 - 🇻🇳 / 🇬🇧 **Song ngữ** — toggle VI/EN trên header
 - ⏳ **Tiến trình khi chờ** — nhãn giai đoạn xoay vòng (phân tích → tra cứu → đối chiếu → kiểm chứng → soạn) + thanh quét + đồng hồ mm:ss; sau 90s hiện dòng trấn an (câu khó có thể chạy vài phút)
 - 🏷️ **Tô sáng trích dẫn pháp lý** — "Điều 42", "155/2020/NĐ-CP", "17/VBHN-BTC"… tự thành chip vàng trong câu trả lời
+- 🔍 **Tooltip nội dung điều/khoản** — rê chuột (desktop) hoặc chạm (mobile) vào trích dẫn dạng "Điều 120, khoản 3 Luật 67/VBHN-VPQH" để xem ngay nội dung điều/khoản đó, tra từ kho văn bản qua RPC read-only trên Supabase (anon key công khai, RLS bật, không lộ service key). Chỉ bọc trích dẫn khi map được tên luật; luật ngoài kho giữ nguyên chip thường. Esc / click ra ngoài để đóng.
 - 📊 **Số liệu kho ở màn hình chào** — đếm tăng dần khi mở; sửa hằng `CORPUS` đầu `app.jsx` khi nạp thêm văn bản
 - ✨ **Màn hình chào động** — nền aurora màu thương hiệu, watermark §, nội dung vào theo nhịp (tự tắt khi hệ điều hành bật giảm chuyển động)
 - 🔘 **Clickable suggestions** — câu hỏi ban đầu + câu hỏi gợi ý sau mỗi câu trả lời đều click được

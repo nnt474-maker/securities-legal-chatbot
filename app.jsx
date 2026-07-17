@@ -7,10 +7,14 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 // được. n8n đã mở CORS (phản hồi access-control-allow-origin theo Origin) nên
 // gọi thẳng từ domain Vercel không bị chặn.
 const WEBHOOK_URL = "https://n8n.phs.vn/webhook/PHS-legal-chat";
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
+// Tra cứu trích dẫn (tooltip điều/khoản) — gọi RPC read-only trên Supabase.
+// Anon key là khóa CÔNG KHAI (publishable, RLS bật); service key không bao giờ ra frontend.
+const SUPA_URL = "https://tuodyjkqexttioluwavi.supabase.co";
+const SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR1b2R5amtxZXh0dGlvbHV3YXZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwNTAzNjUsImV4cCI6MjA3MTYyNjM2NX0.VMIbw3BKK5uj8r6825B2XLFV7wHahZ73jCjnjgrkMf8";
 // Quy mô kho văn bản hiển thị ở màn hình chào + thanh trạng thái.
 // Cập nhật tay khi nạp thêm văn bản (xem bảng legal_source_catalog).
-const CORPUS = { docs: 65, chunks: 6654 };
+const CORPUS = { docs: 70, chunks: 6352 };
 
 const I18N = {
   vi: {
@@ -205,6 +209,246 @@ function highlightLawRefs(html) {
     .join("");
 }
 
+// ============ CITE TOOLTIP (đợt 7) ============
+// Bọc trích dẫn "Điều X[, khoản Y][, điểm z] + tên luật" thành <span class="cite">
+// có data-law/-article/-clause/-point; rê chuột / chạm thì popup nội dung điều đó
+// từ kho documents qua RPC read-only `cite_lookup`. CHỈ bọc khi map được tên luật
+// (qua alias tải từ `cite_aliases`) — không map được thì giữ chip vàng như cũ.
+
+function citeNorm(s) {
+  return String(s || "").toLowerCase()
+    .normalize("NFD").replace(new RegExp("[\\u0300-\\u036f]", "g"), "")
+    .replace(/đ/g, "d")
+    .replace(/[\/\\.,()\[\]‐‑–—-]+/g, " ")
+    .replace(/\s+/g, " ").trim();
+}
+function citeLoose(n) {
+  return (" " + n + " ").replace(/ so /g, " ").replace(/\s+/g, " ").trim();
+}
+
+let CITE_ALIAS_INDEX = null; // [{k: law_id_key, a: alias_norm, l: alias bỏ "số"}]
+const CITE_CACHE = new Map();
+
+function buildCiteIndex(laws) {
+  const idx = [];
+  (laws || []).forEach(law => {
+    (law.a || []).forEach(alias => {
+      if (typeof alias === "string" && alias.length >= 4) {
+        idx.push({ k: law.k, a: alias, l: citeLoose(alias) });
+      }
+    });
+  });
+  CITE_ALIAS_INDEX = idx.length ? idx : null;
+}
+
+async function loadCiteAliases() {
+  try {
+    const cached = JSON.parse(localStorage.getItem("phs_cite_aliases_v1") || "null");
+    if (cached && Date.now() - cached.ts < 86400000 && Array.isArray(cached.laws) && cached.laws.length) {
+      buildCiteIndex(cached.laws);
+      return;
+    }
+  } catch {}
+  const res = await fetch(SUPA_URL + "/rest/v1/rpc/cite_aliases", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SUPA_ANON, Authorization: "Bearer " + SUPA_ANON },
+    body: "{}",
+  });
+  if (!res.ok) throw new Error("aliases HTTP " + res.status);
+  const laws = await res.json();
+  try { localStorage.setItem("phs_cite_aliases_v1", JSON.stringify({ ts: Date.now(), laws })); } catch {}
+  buildCiteIndex(laws);
+}
+
+// Tìm luật trong đoạn văn NGAY SAU trích dẫn (cửa sổ ~110 ký tự, cắt ở ranh giới câu).
+// Alias xuất hiện sớm nhất thắng; hòa thì alias dài hơn thắng. Không thấy → null (không đoán).
+function resolveCiteLaw(win) {
+  if (!win || !CITE_ALIAS_INDEX) return null;
+  const wN = " " + citeNorm(win) + " ";
+  const wL = " " + citeLoose(citeNorm(win)) + " ";
+  let best = null;
+  for (const e of CITE_ALIAS_INDEX) {
+    let idx = wN.indexOf(" " + e.a + " ");
+    if (idx < 0 && e.l && e.l.length >= 4) idx = wL.indexOf(" " + e.l + " ");
+    if (idx >= 0 && (!best || idx < best.idx || (idx === best.idx && e.a.length > best.len))) {
+      best = { k: e.k, idx, len: e.a.length };
+    }
+  }
+  return best ? best.k : null;
+}
+
+const RE_CITE_CORE = /(?:[Đđ]iểm\s+([a-zđ])\s*,?\s+)?(?:[Kk]hoản\s+(\d{1,3})\s*,?\s+)?(?:[Đđ]iều|Article)\s+(\d{1,3}[a-zđ]?)(?:\s*,?\s*[Kk]hoản\s+(\d{1,3}))?(?:\s*,?\s*[đĐ]iểm\s+([a-zđ])\b)?/g;
+
+function escAttr(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// Phân tích HTML đã render: text nối liền xuyên qua thẻ (để "Điều 5 của *Quy chế…*"
+// vẫn thấy tên luật nằm trong <em>), nhưng span chỉ chèn khi lõi trích dẫn nằm
+// trọn trong MỘT đoạn text (không cắt ngang thẻ).
+function annotateCitations(html) {
+  const segs = String(html).split(/(<[^>]*>)/);
+  if (!CITE_ALIAS_INDEX) return segs.map(s => (s.startsWith("<") ? s : s.replace(LAW_REF_RE, '<span class="law-ref">$1</span>'))).join("");
+  const textSegs = [];
+  let concat = "";
+  segs.forEach((s, i) => {
+    if (!s.startsWith("<")) {
+      textSegs.push({ i, start: concat.length, len: s.length });
+      concat += s;
+    }
+  });
+  const perSeg = new Map(); // segIdx -> [{s,e,law,article,clause,point}] (offset cục bộ)
+  let m;
+  RE_CITE_CORE.lastIndex = 0;
+  while ((m = RE_CITE_CORE.exec(concat))) {
+    const article = m[3];
+    const clause = m[2] || m[4] || null;
+    const point = (m[1] || m[5] || null);
+    const winRaw = concat.slice(m.index + m[0].length, m.index + m[0].length + 110);
+    const win = winRaw.split(/[\n.;:)!?"“”…]/)[0];
+    const law = resolveCiteLaw(win);
+    if (!law) continue;
+    const seg = textSegs.find(ts => m.index >= ts.start && m.index + m[0].length <= ts.start + ts.len);
+    if (!seg) continue; // lõi vắt ngang thẻ — bỏ, để highlight thường xử lý
+    if (!perSeg.has(seg.i)) perSeg.set(seg.i, []);
+    perSeg.get(seg.i).push({ s: m.index - seg.start, e: m.index + m[0].length - seg.start, law, article, clause, point });
+  }
+  const legacy = t => t.replace(LAW_REF_RE, '<span class="law-ref">$1</span>');
+  return segs.map((s, i) => {
+    if (s.startsWith("<")) return s;
+    const hits = perSeg.get(i);
+    if (!hits || !hits.length) return legacy(s);
+    let out = "", pos = 0;
+    hits.sort((a, b) => a.s - b.s);
+    for (const h of hits) {
+      if (h.s < pos) continue;
+      out += legacy(s.slice(pos, h.s));
+      out += '<span class="law-ref cite" data-law="' + escAttr(h.law) + '" data-article="' + escAttr(h.article) + '"' +
+        (h.clause ? ' data-clause="' + escAttr(h.clause) + '"' : "") +
+        (h.point ? ' data-point="' + escAttr(h.point) + '"' : "") +
+        ' tabIndex="0">' + s.slice(h.s, h.e) + "</span>";
+      pos = h.e;
+    }
+    out += legacy(s.slice(pos));
+    return out;
+  }).join("");
+}
+
+async function citeFetch(law, article, clause, point) {
+  const key = [law, article, clause || "", point || ""].join("|");
+  if (CITE_CACHE.has(key)) return CITE_CACHE.get(key);
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 8000);
+  try {
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/cite_lookup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPA_ANON, Authorization: "Bearer " + SUPA_ANON },
+      body: JSON.stringify({ p_law: law, p_article: article, p_clause: clause || null, p_point: point || null }),
+      signal: ctl.signal,
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    CITE_CACHE.set(key, data);
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const CITE_TEXT = {
+  vi: {
+    loading: "Đang tra cứu…",
+    notFound: "Chưa tra được nội dung này trong kho văn bản.",
+    clauseMissing: "Chưa tách được đúng khoản — hiển thị đầu điều:",
+    partial: "(trích một phần)",
+    source: "Nguồn: kho văn bản PHS Legal",
+  },
+  en: {
+    loading: "Looking up…",
+    notFound: "This provision could not be found in the corpus.",
+    clauseMissing: "Clause not isolated — showing the article:",
+    partial: "(excerpt)",
+    source: "Source: PHS Legal corpus",
+  },
+};
+function citeText() {
+  return document.documentElement.lang === "en" ? CITE_TEXT.en : CITE_TEXT.vi;
+}
+
+function ensureCitePop() {
+  let el = document.getElementById("cite-pop");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "cite-pop";
+    el.className = "cite-pop";
+    el.setAttribute("role", "tooltip");
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+// Toàn bộ nội dung popup dựng bằng textContent — không innerHTML dữ liệu ngoài.
+function renderCitePop(pop, state, T) {
+  pop.textContent = "";
+  const add = (cls, text) => {
+    const d = document.createElement("div");
+    d.className = cls;
+    if (text != null) d.textContent = text;
+    pop.appendChild(d);
+    return d;
+  };
+  if (state.loading) { add("cite-pop-loading", T.loading); return; }
+  const d = state.data;
+  if (state.error || !d || d.found !== true) {
+    add("cite-pop-notfound", T.notFound);
+    if (d && d.law_display) add("cite-pop-foot", d.law_display);
+    return;
+  }
+  let head = d.law_display + " · Điều " + d.article_no;
+  if (d.clause_no) head += ", khoản " + d.clause_no;
+  if (d.point_no) head += ", điểm " + d.point_no;
+  add("cite-pop-head", head);
+  if (d.article_title) add("cite-pop-title", d.article_title);
+  if (d.clause_found === false) add("cite-pop-note", T.clauseMissing);
+  add("cite-pop-body", d.excerpt || "");
+  add("cite-pop-foot", T.source + (d.truncated ? " · " + T.partial : ""));
+}
+
+function positionCitePop(pop, anchor) {
+  const r = anchor.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const w = Math.min(380, vw - 24);
+  pop.style.width = w + "px";
+  pop.classList.add("is-open");
+  const h = pop.offsetHeight;
+  let top = r.bottom + 8;
+  if (top + h > vh - 12 && r.top - h - 8 > 12) top = r.top - h - 8;
+  let left = Math.min(Math.max(12, r.left), vw - w - 12);
+  pop.style.top = Math.max(12, top) + "px";
+  pop.style.left = left + "px";
+}
+
+function showCitePop(el) {
+  const pop = ensureCitePop();
+  const law = el.dataset.law, article = el.dataset.article;
+  const clause = el.dataset.clause || null, point = el.dataset.point || null;
+  if (!law || !article) return;
+  const key = [law, article, clause || "", point || ""].join("|");
+  pop.__key = key;
+  pop.__anchor = el;
+  const T = citeText();
+  renderCitePop(pop, { loading: true }, T);
+  positionCitePop(pop, el);
+  citeFetch(law, article, clause, point)
+    .then(d => { if (pop.__key !== key) return; renderCitePop(pop, { data: d }, T); positionCitePop(pop, el); })
+    .catch(() => { if (pop.__key !== key) return; renderCitePop(pop, { error: true }, T); positionCitePop(pop, el); });
+}
+
+function hideCitePop() {
+  const pop = document.getElementById("cite-pop");
+  if (pop) { pop.classList.remove("is-open"); pop.__key = null; pop.__anchor = null; }
+}
+
 function extractSuggestions(data) {
   if (!data) return [];
   const candidates = [
@@ -344,7 +588,7 @@ function Message({ msg, t, onSuggestionClick }) {
           <div className="msg-error">{msg.content}</div>
         ) : (
           <>
-            <div className="msg-prose" dangerouslySetInnerHTML={{ __html: highlightLawRefs(mdToHtml(msg.content)) }} />
+            <div className="msg-prose" dangerouslySetInnerHTML={{ __html: annotateCitations(mdToHtml(msg.content)) }} />
             {msg.suggestions && msg.suggestions.length > 0 && (
               <div className="related">
                 <div className="related-label">{t.relatedLabel}</div>
@@ -470,6 +714,7 @@ function App() {
   const [sending, setSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [now, setNow] = useState(new Date());
+  const [citeReady, setCiteReady] = useState(false); // re-render tin nhắn khi alias tra cứu về
 
   const t = I18N[lang];
   const scrollRef = useRef(null);
@@ -479,6 +724,57 @@ function App() {
   useEffect(() => {
     const i = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(i);
+  }, []);
+
+  // Cite tooltip: tải alias luật (1 lần, cache 24h) + gắn listener hover/tap/Esc.
+  // Tooltip là tăng cường — alias tải lỗi thì câu trả lời vẫn render bình thường.
+  useEffect(() => {
+    loadCiteAliases().then(() => setCiteReady(true)).catch(() => {});
+    let hoverTimer = null, hideTimer = null;
+    const isCite = e => (e.target && e.target.closest ? e.target.closest(".cite") : null);
+    const onOver = e => {
+      const c = isCite(e);
+      if (!c) return;
+      clearTimeout(hideTimer);
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(() => showCitePop(c), 150);
+    };
+    const onOut = e => {
+      if (!isCite(e)) return;
+      clearTimeout(hoverTimer);
+      hideTimer = setTimeout(hideCitePop, 250);
+    };
+    const onClick = e => {
+      const c = isCite(e);
+      if (c) {
+        e.preventDefault();
+        const pop = document.getElementById("cite-pop");
+        if (pop && pop.classList.contains("is-open") && pop.__anchor === c) hideCitePop();
+        else showCitePop(c);
+      } else if (!(e.target.closest && e.target.closest("#cite-pop"))) {
+        hideCitePop();
+      }
+    };
+    const onKey = e => { if (e.key === "Escape") hideCitePop(); };
+    const pop = ensureCitePop();
+    const popEnter = () => clearTimeout(hideTimer);
+    const popLeave = () => { hideTimer = setTimeout(hideCitePop, 250); };
+    document.addEventListener("mouseover", onOver);
+    document.addEventListener("mouseout", onOut);
+    document.addEventListener("click", onClick);
+    document.addEventListener("keydown", onKey);
+    pop.addEventListener("mouseenter", popEnter);
+    pop.addEventListener("mouseleave", popLeave);
+    return () => {
+      document.removeEventListener("mouseover", onOver);
+      document.removeEventListener("mouseout", onOut);
+      document.removeEventListener("click", onClick);
+      document.removeEventListener("keydown", onKey);
+      pop.removeEventListener("mouseenter", popEnter);
+      pop.removeEventListener("mouseleave", popLeave);
+      clearTimeout(hoverTimer);
+      clearTimeout(hideTimer);
+    };
   }, []);
 
   // Persistence
