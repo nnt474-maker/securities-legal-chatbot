@@ -4,6 +4,24 @@ Giao diện chatbot pháp lý chứng khoán (VI/EN) — deploy lên Vercel, k�
 
 Webhook đã được nối sẵn trong `app.jsx` (`WEBHOOK_URL`) — người dùng mở link là dùng được luôn, **không cần** dán URL hay bấm cài đặt.
 
+## Tab "Biểu mẫu" (Teller Portal)
+
+Trên topbar có 2 tab: **Trợ lý pháp lý** (chat) và **Biểu mẫu** (nhập 10 biểu mẫu PHS,
+xuất file Word ngay trên trình duyệt — không backend, không lưu trữ). Tab Biểu mẫu là
+app Teller Portal build sẵn, nằm trong thư mục `forms/` và nhúng qua iframe cùng domain;
+chuyển tab qua lại **không mất** hội thoại đang chat lẫn dữ liệu form đang nhập.
+
+Nguồn của Teller Portal ở repo riêng: `C:\Users\ACER\Downloads\Teller portal`.
+Khi sửa portal, build lại và đồng bộ vào đây:
+
+```bash
+cd "C:\Users\ACER\Downloads\Teller portal"
+npm run build
+node scripts/sync-to-chatbot.mjs   # copy dist/ -> UI for chatbot/forms/
+```
+
+Deploy như cũ (thư mục này lên Vercel) — `forms/` đi kèm luôn, không cần cấu hình thêm.
+
 ## Triển khai lên Vercel (qua GitHub)
 
 1. Đưa **nội dung thư mục này** (các file `index.html`, `app.jsx`, `styles.css`, `vercel.json`…) lên một repo GitHub — để chúng nằm ở gốc repo, không lồng trong thư mục con.

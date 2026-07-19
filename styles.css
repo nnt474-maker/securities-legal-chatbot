@@ -782,6 +782,29 @@ pre code { background: none; padding: 0; color: inherit; }
   background: var(--line-soft);
   color: var(--ink);
 }
+.msg-prose hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 14px 0;
+}
+.msg-prose li > ul { margin: 4px 0; }
+.msg-prose .md-table { overflow-x: auto; margin: 10px 0 14px; }
+.msg-prose table {
+  border-collapse: collapse;
+  font-size: 13.5px;
+  min-width: 60%;
+}
+.msg-prose th, .msg-prose td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.msg-prose th {
+  background: var(--line-soft);
+  font-weight: 600;
+  white-space: nowrap;
+}
 
 /* Chip trích dẫn pháp lý — "Điều 42", "155/2020/NĐ-CP"… */
 .msg-prose .law-ref {
@@ -1353,4 +1376,45 @@ pre code { background: none; padding: 0; color: inherit; }
 @media (max-width: 480px) {
   .cite-pop { padding: 10px 12px; }
   .cite-pop-body { max-height: 190px; }
+}
+
+/* =====================================================================
+   TAB BIỂU MẪU (Teller Portal nhúng iframe cùng domain — thư mục forms/)
+   ===================================================================== */
+.view-tabs {
+  display: inline-flex;
+  background: var(--page);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 2px;
+  margin-right: auto;
+}
+.view-tab {
+  padding: 4px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--mute);
+  border-radius: 3px;
+  transition: color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+.view-tab.is-active { background: var(--brand); color: #fff; }
+
+.forms-view {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-height: 0;
+  background: #fff;
+}
+.forms-view[aria-hidden="true"] { display: none; }
+.forms-frame { display: block; width: 100%; height: 100%; border: 0; }
+
+.app.view-forms .sidebar,
+.app.view-forms .main { display: none; }
+
+@media (max-width: 880px) {
+  .app.view-forms .sidebar { display: none !important; }
+  .view-tab { padding: 4px 10px; }
 }

@@ -7,7 +7,7 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 // được. n8n đã mở CORS (phản hồi access-control-allow-origin theo Origin) nên
 // gọi thẳng từ domain Vercel không bị chặn.
 const WEBHOOK_URL = "https://n8n.phs.vn/webhook/PHS-legal-chat";
-const APP_VERSION = "1.1.0";
+const APP_VERSION = "1.2.0";
 // Tra cứu trích dẫn (tooltip điều/khoản) — gọi RPC read-only trên Supabase.
 // Anon key là khóa CÔNG KHAI (publishable, RLS bật); service key không bao giờ ra frontend.
 const SUPA_URL = "https://tuodyjkqexttioluwavi.supabase.co";
@@ -86,6 +86,8 @@ const I18N = {
     statLangValue: "VI · EN",
     statLang: "song ngữ",
     badge20: "20 NĂM",
+    tabChat: "Trợ lý pháp lý",
+    tabForms: "Biểu mẫu",
   },
   en: {
     appName: "PHS LEGAL",
@@ -156,6 +158,8 @@ const I18N = {
     statLangValue: "VI · EN",
     statLang: "bilingual",
     badge20: "20 YRS",
+    tabChat: "Legal Assistant",
+    tabForms: "Forms",
   },
 };
 
@@ -171,32 +175,116 @@ const STORAGE = {
   activeId: "phs_legal_active_v2",
 };
 
+// mdToHtml v2 (đợt 8) — parser theo DÒNG thay cho chuỗi regex cũ. Regex cũ có
+// 4 điểm mù với markdown HỢP LỆ mà kernel hay xuất: (1) blockquote chết hẳn vì
+// escape `>`→`&gt;` chạy trước rule tìm `>` thô; (2) `---`/bảng `|…|` không có
+// rule nên lộ nguyên văn; (3) bullet thụt dưới "1." không được nhận → dính vào
+// <p>, đồng thời <ol> bị cắt đôi và đánh số lại từ 1; (4) list đứng sát dòng
+// text bị bọc nhầm vào <p>. Chỉ đổi khâu render; annotateCitations/tooltip
+// (đợt 7) nhận HTML đầu ra như cũ, không đụng.
+function mdInline(t) {
+  return t
+    .replace(/`([^`\n]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
 function mdToHtml(src) {
   if (!src) return "";
-  let s = String(src);
+  let s = String(src).replace(/\r\n?/g, "\n");
   s = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  s = s.replace(/```([\s\S]*?)```/g, (_, c) => `<pre><code>${c.trim()}</code></pre>`);
-  s = s.replace(/`([^`\n]+)`/g, "<code>$1</code>");
-  s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
-  s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
-  s = s.replace(/^###\s+(.+)$/gm, "<h4>$1</h4>");
-  s = s.replace(/^##\s+(.+)$/gm, "<h3>$1</h3>");
-  s = s.replace(/^#\s+(.+)$/gm, "<h2>$1</h2>");
-  s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  s = s.replace(/(?:^|\n)((?:[-•]\s+.+(?:\n|$))+)/g, (m, block) => {
-    const items = block.trim().split(/\n/).map(l => l.replace(/^[-•]\s+/, "").trim()).filter(Boolean);
-    return "\n<ul>" + items.map(i => `<li>${i}</li>`).join("") + "</ul>";
+  const fences = [];
+  s = s.replace(/```([\s\S]*?)```/g, (_, c) => {
+    fences.push("<pre><code>" + c.trim() + "</code></pre>");
+    return "\u0000F" + (fences.length - 1) + "\u0000";
   });
-  s = s.replace(/(?:^|\n)((?:\d+\.\s+.+(?:\n|$))+)/g, (m, block) => {
-    const items = block.trim().split(/\n/).map(l => l.replace(/^\d+\.\s+/, "").trim()).filter(Boolean);
-    return "\n<ol>" + items.map(i => `<li>${i}</li>`).join("") + "</ol>";
-  });
-  s = s.replace(/(?:^|\n)>\s+(.+)(?=\n|$)/g, "\n<blockquote>$1</blockquote>");
-  const blocks = s.split(/\n{2,}/).map(b => {
-    if (/^\s*<(h\d|ul|ol|pre|blockquote)/.test(b)) return b;
-    return "<p>" + b.replace(/\n/g, "<br>") + "</p>";
-  });
-  return blocks.join("\n");
+  const RE_HR = /^\s*(?:-{3,}|_{3,}|\*{3,})\s*$/;
+  const RE_H = /^(#{1,4})\s+(.+)$/;
+  const RE_OL = /^\s*(\d{1,3})[.)]\s+(.+)$/;
+  const RE_UL = /^\s*[-•]\s+(.+)$/;
+  const RE_BQ = /^\s*&gt;\s?(.*)$/;
+  const RE_TSEP = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/;
+  const lines = s.split("\n");
+  const out = [];
+  let para = [];
+  const flush = () => {
+    if (para.length) { out.push("<p>" + para.map(mdInline).join("<br>") + "</p>"); para = []; }
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.trim()) { flush(); continue; }
+    if (/^\u0000F\d+\u0000$/.test(line.trim())) { flush(); out.push(line.trim()); continue; }
+    if (RE_HR.test(line)) { flush(); out.push("<hr>"); continue; }
+    let m;
+    if ((m = line.match(RE_H))) {
+      flush();
+      const lvl = Math.min(m[1].length + 1, 5);
+      out.push("<h" + lvl + ">" + mdInline(m[2]) + "</h" + lvl + ">");
+      continue;
+    }
+    if ((m = line.match(RE_BQ))) {
+      flush();
+      const buf = [m[1]];
+      while (i + 1 < lines.length && (m = lines[i + 1].match(RE_BQ))) { buf.push(m[1]); i++; }
+      out.push("<blockquote>" + buf.map(mdInline).join("<br>") + "</blockquote>");
+      continue;
+    }
+    if (line.indexOf("|") >= 0 && line.split("|").length >= 3 && i + 1 < lines.length && RE_TSEP.test(lines[i + 1])) {
+      flush();
+      const cells = l => l.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(c => mdInline(c.trim()));
+      let html = '<div class="md-table"><table><thead><tr>' + cells(line).map(c => "<th>" + c + "</th>").join("") + "</tr></thead><tbody>";
+      i++;
+      while (i + 1 < lines.length && lines[i + 1].trim() && lines[i + 1].indexOf("|") >= 0) {
+        i++;
+        html += "<tr>" + cells(lines[i]).map(c => "<td>" + c + "</td>").join("") + "</tr>";
+      }
+      out.push(html + "</tbody></table></div>");
+      continue;
+    }
+    if (RE_OL.test(line) || RE_UL.test(line)) {
+      flush();
+      // Gom cả cụm list liền kề. Khi <ol> đang mở, mọi bullet (kể cả thụt 1 dấu
+      // cách kiểu kernel) là <ul> lồng trong <li> hiện tại; số thứ tự giữ liên
+      // tục, khối <ol> tách rời tiếp số cũ qua start.
+      const firstOl = RE_OL.test(line);
+      const items = [];
+      let j = i;
+      while (j < lines.length) {
+        const om = lines[j].match(RE_OL);
+        const um = om ? null : lines[j].match(RE_UL);
+        if (om) { if (!firstOl) break; items.push({ o: true, n: parseInt(om[1], 10), t: om[2] }); }
+        else if (um) items.push({ o: false, t: um[1] });
+        else break;
+        j++;
+      }
+      i = j - 1;
+      if (!firstOl) {
+        out.push("<ul>" + items.map(it => "<li>" + mdInline(it.t) + "</li>").join("") + "</ul>");
+      } else {
+        let html = "<ol" + (items[0].n > 1 ? ' start="' + items[0].n + '"' : "") + ">";
+        let liOpen = false, subOpen = false;
+        for (const it of items) {
+          if (it.o) {
+            if (subOpen) { html += "</ul>"; subOpen = false; }
+            if (liOpen) html += "</li>";
+            html += "<li>" + mdInline(it.t);
+            liOpen = true;
+          } else {
+            if (!liOpen) { html += "<li>"; liOpen = true; }
+            if (!subOpen) { html += "<ul>"; subOpen = true; }
+            html += "<li>" + mdInline(it.t) + "</li>";
+          }
+        }
+        if (subOpen) html += "</ul>";
+        if (liOpen) html += "</li>";
+        out.push(html + "</ol>");
+      }
+      continue;
+    }
+    para.push(line);
+  }
+  flush();
+  return out.join("\n").replace(/\u0000F(\d+)\u0000/g, (_, n) => fences[+n]);
 }
 
 // Tô sáng trích dẫn pháp lý trong HTML đã render: "Điều 42", "Điều 8b khoản 2",
@@ -286,7 +374,7 @@ function escAttr(s) {
 // Phân tích HTML đã render: text nối liền xuyên qua thẻ (để "Điều 5 của *Quy chế…*"
 // vẫn thấy tên luật nằm trong <em>), nhưng span chỉ chèn khi lõi trích dẫn nằm
 // trọn trong MỘT đoạn text (không cắt ngang thẻ).
-function annotateCitations(html) {
+function annotateCitations(html, ledger) {
   const segs = String(html).split(/(<[^>]*>)/);
   if (!CITE_ALIAS_INDEX) return segs.map(s => (s.startsWith("<") ? s : s.replace(LAW_REF_RE, '<span class="law-ref">$1</span>'))).join("");
   const textSegs = [];
@@ -306,7 +394,12 @@ function annotateCitations(html) {
     const point = (m[1] || m[5] || null);
     const winRaw = concat.slice(m.index + m[0].length, m.index + m[0].length + 110);
     const win = winRaw.split(/[\n.;:)!?"“”…]/)[0];
-    const law = resolveCiteLaw(win);
+    let law = resolveCiteLaw(win);
+    if (!law && Array.isArray(ledger) && ledger.length) {
+      // fallback sổ qa_log: chỉ nhận khi đúng MỘT luật trong sổ có điều này
+      const cand = [...new Set(ledger.filter(e => e.a === String(article).toLowerCase()).map(e => e.k))];
+      if (cand.length === 1) law = cand[0];
+    }
     if (!law) continue;
     const seg = textSegs.find(ts => m.index >= ts.start && m.index + m[0].length <= ts.start + ts.len);
     if (!seg) continue; // lõi vắt ngang thẻ — bỏ, để highlight thường xử lý
@@ -352,6 +445,32 @@ async function citeFetch(law, article, clause, point) {
     return data;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// Sổ trích dẫn của CÂU TRẢ LỜI MỚI NHẤT trong session (kernel đã ghi ở qa_log).
+// Dùng làm fallback CÓ CĂN CỨ cho trích dẫn không nêu tên luật trong câu chữ
+// (vd "(Điều 32, khoản 2)" khi cả câu không nhắc "Luật Chứng khoán") — không đoán mò.
+async function citeFetchLedger(sessionId) {
+  if (!sessionId) return [];
+  try {
+    const res = await fetch(SUPA_URL + "/rest/v1/rpc/cite_session_citations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPA_ANON, Authorization: "Bearer " + SUPA_ANON },
+      body: JSON.stringify({ p_session: sessionId }),
+    });
+    if (!res.ok) return [];
+    const arr = await res.json();
+    if (!Array.isArray(arr)) return [];
+    const out = [];
+    arr.forEach(e => {
+      if (!e || !e.article) return;
+      const k = e.law_code ? resolveCiteLaw(String(e.law_code)) : null;
+      if (k) out.push({ k, a: String(e.article).toLowerCase() });
+    });
+    return out;
+  } catch {
+    return [];
   }
 }
 
@@ -588,7 +707,7 @@ function Message({ msg, t, onSuggestionClick }) {
           <div className="msg-error">{msg.content}</div>
         ) : (
           <>
-            <div className="msg-prose" dangerouslySetInnerHTML={{ __html: annotateCitations(mdToHtml(msg.content)) }} />
+            <div className="msg-prose" dangerouslySetInnerHTML={{ __html: annotateCitations(mdToHtml(msg.content), msg.cites) }} />
             {msg.suggestions && msg.suggestions.length > 0 && (
               <div className="related">
                 <div className="related-label">{t.relatedLabel}</div>
@@ -713,6 +832,11 @@ function App() {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Tab "Biểu mẫu" (Teller Portal nhúng qua iframe cùng domain, thư mục forms/).
+  // Iframe chỉ nạp lần đầu mở tab và giữ nguyên khi chuyển qua lại — không mất dữ liệu đang nhập.
+  const [view, setView] = useState("chat");
+  const [formsLoaded, setFormsLoaded] = useState(false);
+  const openForms = () => { setFormsLoaded(true); setView("forms"); setSidebarOpen(false); };
   const [now, setNow] = useState(new Date());
   const [citeReady, setCiteReady] = useState(false); // re-render tin nhắn khi alias tra cứu về
 
@@ -906,6 +1030,21 @@ function App() {
       const cleanAnswer = stripSuggestionsBlock(rawAnswer);
       const replyTs = new Date().toLocaleTimeString(lang === "vi" ? "vi-VN" : "en-US", { hour: "2-digit", minute: "2-digit" });
       finishWith({ content: cleanAnswer, suggestions, timestamp: replyTs });
+      // Đợt 7b: lấy sổ trích dẫn kernel ghi ở qa_log (có thể ghi trễ vài giây → retry)
+      // để bọc nốt các trích dẫn không nêu tên luật. Lỗi thì bỏ qua êm.
+      const attachLedger = (tries) => {
+        citeFetchLedger(sessionId).then(led => {
+          if (led.length) {
+            setConversations(cs => cs.map(c => c.id !== convId ? c : {
+              ...c,
+              messages: (c.messages || []).map(m => m.id === loadingMsg.id ? { ...m, cites: led } : m),
+            }));
+          } else if (tries > 0) {
+            setTimeout(() => attachLedger(tries - 1), 2500);
+          }
+        }).catch(() => {});
+      };
+      attachLedger(2);
     } catch (e) {
       console.error(e);
       finishWith({ error: true, content: e && e.name === "AbortError" ? t.errorTimeout : t.error });
@@ -935,7 +1074,7 @@ function App() {
   const activeShortSession = activeConv?.sessionId ? activeConv.sessionId.slice(-10) : "—";
 
   return (
-    <div className="app" data-screen-label="Chat">
+    <div className={"app" + (view === "forms" ? " view-forms" : "")} data-screen-label="Chat">
       {/* TOP BAR */}
       <header className="topbar">
         <div className="brand">
@@ -950,6 +1089,20 @@ function App() {
           <span className="badge-20y" title="20 năm Phú Hưng Securities">{t.badge20}</span>
         </div>
         <div className="topbar-main">
+          <div className="view-tabs" role="tablist">
+            <button
+              className={"view-tab " + (view === "chat" ? "is-active" : "")}
+              onClick={() => setView("chat")}
+              role="tab"
+              aria-selected={view === "chat"}
+            >{t.tabChat}</button>
+            <button
+              className={"view-tab " + (view === "forms" ? "is-active" : "")}
+              onClick={openForms}
+              role="tab"
+              aria-selected={view === "forms"}
+            >{t.tabForms}</button>
+          </div>
           <div className="crumbs">
             <span>{t.crumbHome}</span>
             <span className="crumb-sep">/</span>
@@ -1001,6 +1154,13 @@ function App() {
           <div className="foot-sub">{t.poweredBy}</div>
         </div>
       </aside>
+
+      {/* FORMS TAB (Teller Portal, luôn giữ mounted sau lần mở đầu) */}
+      {formsLoaded && (
+        <section className="forms-view" aria-hidden={view !== "forms"}>
+          <iframe className="forms-frame" src="forms/" title={t.tabForms} />
+        </section>
+      )}
 
       {/* MAIN */}
       <main className="main">
