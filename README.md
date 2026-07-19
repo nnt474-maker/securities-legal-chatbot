@@ -16,8 +16,7 @@ Khi sửa portal, build lại và đồng bộ vào đây:
 
 ```bash
 cd "C:\Users\ACER\Downloads\Teller portal"
-npm run build
-node scripts/sync-to-chatbot.mjs   # copy dist/ -> UI for chatbot/forms/
+npm run sync:chatbot   # build với base /forms/ rồi copy vào forms/ ở đây
 ```
 
 Deploy như cũ (thư mục này lên Vercel) — `forms/` đi kèm luôn, không cần cấu hình thêm.
