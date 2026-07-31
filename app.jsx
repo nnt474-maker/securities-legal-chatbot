@@ -88,6 +88,39 @@ const I18N = {
     badge20: "20 NĂM",
     tabChat: "Trợ lý pháp lý",
     tabForms: "Biểu mẫu",
+    tabAsk: "Hỏi chuyên viên",
+    escalateBtn: "Nhờ chuyên viên trả lời kỹ",
+    escalateDone: "✓ Đã chuyển chuyên viên",
+    askHeading: "Hỏi chuyên viên pháp chế",
+    askLead: "Câu hỏi khó, cần đối chiếu nhiều văn bản? Gửi tại đây. Chuyên viên pháp chế PHS trực tiếp đọc và soạn câu trả lời — kết quả gửi vào email bạn nhập, đồng thời xem lại được ở mục tra cứu bên dưới.",
+    askEmail: "Email nhận kết quả",
+    askEmailPh: "ten.ban@phs.vn",
+    askEmailNote: "Chỉ nhập một lần, lần sau máy tự nhớ.",
+    askQuestion: "Câu hỏi của bạn",
+    askQuestionPh: "Càng cụ thể càng tốt: tình huống, loại hình công ty, mốc thời gian, văn bản đang vướng…",
+    askSubmit: "Gửi cho chuyên viên",
+    askSending: "Đang gửi…",
+    askOk: "Đã ghi nhận câu hỏi",
+    askOkBody: "Mã câu hỏi của bạn",
+    askOkHint: "Giữ mã này để đối chiếu. Khi chuyên viên trả lời, bạn nhận email và xem được ngay ở mục tra cứu bên dưới.",
+    askAnother: "Gửi câu hỏi khác",
+    errEmail: "Email chưa đúng định dạng.",
+    errQuestion: "Câu hỏi cần ít nhất 10 ký tự để chuyên viên nắm được ngữ cảnh.",
+    errRate: "Bạn đã gửi quá nhiều câu hỏi trong 24 giờ. Vui lòng thử lại sau.",
+    errNet: "Không gửi được. Kiểm tra kết nối mạng rồi thử lại.",
+    lookupHeading: "Tra cứu câu trả lời",
+    lookupLead: "Nhập đúng email bạn đã dùng khi gửi câu hỏi.",
+    lookupBtn: "Xem kết quả",
+    lookupLoading: "Đang tra…",
+    lookupEmpty: "Chưa có câu hỏi nào gửi từ email này.",
+    stPending: "Đang chờ chuyên viên",
+    stAnswered: "Đã trả lời",
+    stRejected: "Không tiếp nhận",
+    askedAt: "Gửi lúc",
+    answeredAt: "Trả lời lúc",
+    modalTitle: "Nhờ chuyên viên trả lời kỹ hơn",
+    modalLead: "Câu hỏi sẽ được chuyển tới chuyên viên pháp chế PHS. Bạn có thể bổ sung ngữ cảnh trước khi gửi.",
+    modalCancel: "Đóng",
   },
   en: {
     appName: "PHS LEGAL",
@@ -160,6 +193,39 @@ const I18N = {
     badge20: "20 YRS",
     tabChat: "Legal Assistant",
     tabForms: "Forms",
+    tabAsk: "Ask an Expert",
+    escalateBtn: "Ask an expert for a fuller answer",
+    escalateDone: "✓ Sent to an expert",
+    askHeading: "Ask a PHS legal counsel",
+    askLead: "Difficult question that needs several documents cross-checked? Send it here. A PHS legal counsel reads it and writes the answer personally — the result goes to the email you enter and also shows up in the lookup section below.",
+    askEmail: "Email for the answer",
+    askEmailPh: "your.name@phs.vn",
+    askEmailNote: "Enter once — it is remembered next time.",
+    askQuestion: "Your question",
+    askQuestionPh: "The more specific the better: the situation, type of company, deadlines, the document you are stuck on…",
+    askSubmit: "Send to an expert",
+    askSending: "Sending…",
+    askOk: "Question received",
+    askOkBody: "Your ticket code",
+    askOkHint: "Keep this code for reference. When the counsel answers, you get an email and can read it in the lookup section below.",
+    askAnother: "Send another question",
+    errEmail: "That email address is not valid.",
+    errQuestion: "The question needs at least 10 characters so the counsel has context.",
+    errRate: "You have sent too many questions in 24 hours. Please try again later.",
+    errNet: "Could not send. Check your connection and try again.",
+    lookupHeading: "Look up an answer",
+    lookupLead: "Enter the exact email you used when sending the question.",
+    lookupBtn: "Show results",
+    lookupLoading: "Looking up…",
+    lookupEmpty: "No questions have been sent from this email yet.",
+    stPending: "Waiting for counsel",
+    stAnswered: "Answered",
+    stRejected: "Not accepted",
+    askedAt: "Sent",
+    answeredAt: "Answered",
+    modalTitle: "Ask an expert for a fuller answer",
+    modalLead: "This question goes to a PHS legal counsel. You can add context before sending.",
+    modalCancel: "Close",
   },
 };
 
@@ -173,7 +239,35 @@ const STORAGE = {
   lang: "phs_legal_lang",
   conversations: "phs_legal_conversations_v2",
   activeId: "phs_legal_active_v2",
+  escEmail: "phs_legal_esc_email",
 };
+
+// ============ HỎI CHUYÊN VIÊN (escalation) ============
+// Câu hỏi người dùng thấy chưa thỏa đáng được ghi vào bảng legal_escalation.
+// Chuyên viên pháp chế đọc, tự soạn câu trả lời rồi duyệt; n8n gửi mail.
+// Anon key chỉ chạy được 2 RPC security-definer dưới đây — bảng bật RLS,
+// đọc thẳng bảng trả về rỗng, và bản nháp chưa duyệt không bao giờ lộ ra.
+async function supaRpc(fn, body) {
+  const res = await fetch(SUPA_URL + "/rest/v1/rpc/" + fn, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SUPA_ANON, Authorization: "Bearer " + SUPA_ANON },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+const escalationSubmit = (payload) => supaRpc("escalation_submit", { payload });
+const escalationList = (email) => supaRpc("escalation_list", { p_email: email });
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
+
+function escErrorText(code, t) {
+  if (code === "invalid_email") return t.errEmail;
+  if (code === "invalid_question") return t.errQuestion;
+  if (code === "rate_limited") return t.errRate;
+  return t.errNet;
+}
 
 // mdToHtml v2 (đợt 8) — parser theo DÒNG thay cho chuỗi regex cũ. Regex cũ có
 // 4 điểm mù với markdown HỢP LỆ mà kernel hay xuất: (1) blockquote chết hẳn vì
@@ -673,7 +767,7 @@ function ThinkingCard({ t }) {
   );
 }
 
-function Message({ msg, t, onSuggestionClick }) {
+function Message({ msg, t, onSuggestionClick, onEscalate }) {
   const [copied, setCopied] = useState(false);
   const isUser = msg.role === "user";
 
@@ -726,6 +820,13 @@ function Message({ msg, t, onSuggestionClick }) {
                 <button className="action-btn" onClick={copy}>
                   {copied ? "✓ " + t.copied : t.copy}
                 </button>
+                {msg.escalatedCode ? (
+                  <span className="action-done">{t.escalateDone} · {msg.escalatedCode}</span>
+                ) : (
+                  <button className="action-btn action-escalate" onClick={() => onEscalate(msg)}>
+                    {t.escalateBtn}
+                  </button>
+                )}
               </div>
             )}
           </>
@@ -817,6 +918,222 @@ function Welcome({ t, lang, onSuggestion }) {
   );
 }
 
+// ============ HỎI CHUYÊN VIÊN — form gửi ============
+// Dùng chung cho tab "Hỏi chuyên viên" và modal bật từ dưới câu trả lời của bot.
+function EscalateForm({ t, lang, presetQuestion, presetBotAnswer, sessionId, source, onDone, compact }) {
+  const [email, setEmail] = useState(() => localStorage.getItem(STORAGE.escEmail) || "");
+  const [question, setQuestion] = useState(presetQuestion || "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [code, setCode] = useState("");
+
+  const submit = async () => {
+    const mail = email.trim().toLowerCase();
+    const q = question.trim();
+    if (!EMAIL_RE.test(mail)) { setErr(t.errEmail); return; }
+    if (q.length < 10) { setErr(t.errQuestion); return; }
+    setErr("");
+    setBusy(true);
+    try {
+      const r = await escalationSubmit({
+        email: mail,
+        question: q,
+        lang,
+        source: source || "ask_tab",
+        bot_answer: presetBotAnswer || "",
+        session_id: sessionId || "",
+      });
+      if (r && r.ok) {
+        try { localStorage.setItem(STORAGE.escEmail, mail); } catch {}
+        setCode(r.ticket_code);
+        if (onDone) onDone(r.ticket_code, mail);
+      } else {
+        setErr(escErrorText(r && r.error, t));
+      }
+    } catch {
+      setErr(t.errNet);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (code) {
+    return (
+      <div className="esc-ok">
+        <div className="esc-ok-title">{t.askOk}</div>
+        <div className="esc-ok-label">{t.askOkBody}</div>
+        <div className="esc-ok-code">{code}</div>
+        <p className="esc-note">{t.askOkHint}</p>
+        {!compact && (
+          <button className="esc-btn esc-btn-ghost" onClick={() => { setCode(""); setQuestion(""); }}>
+            {t.askAnother}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="esc-form">
+      <label className="esc-label">{t.askEmail}</label>
+      <input
+        className="esc-input"
+        type="email"
+        inputMode="email"
+        autoComplete="email"
+        value={email}
+        onChange={ev => setEmail(ev.target.value)}
+        placeholder={t.askEmailPh}
+        disabled={busy}
+      />
+      <div className="esc-note">{t.askEmailNote}</div>
+
+      <label className="esc-label">{t.askQuestion}</label>
+      <textarea
+        className="esc-textarea"
+        value={question}
+        onChange={ev => setQuestion(ev.target.value)}
+        placeholder={t.askQuestionPh}
+        rows={compact ? 5 : 7}
+        disabled={busy}
+      />
+
+      {err && <div className="esc-err">{err}</div>}
+      <button className="esc-btn" onClick={submit} disabled={busy}>
+        {busy ? t.askSending : t.askSubmit}
+      </button>
+    </div>
+  );
+}
+
+// ============ HỎI CHUYÊN VIÊN — tra cứu kết quả theo email ============
+function EscalateLookup({ t, lang }) {
+  const [email, setEmail] = useState(() => localStorage.getItem(STORAGE.escEmail) || "");
+  const [rows, setRows] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const [openId, setOpenId] = useState(null);
+
+  const load = async () => {
+    const mail = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(mail)) { setErr(t.errEmail); return; }
+    setErr("");
+    setBusy(true);
+    try {
+      const data = await escalationList(mail);
+      try { localStorage.setItem(STORAGE.escEmail, mail); } catch {}
+      setRows(Array.isArray(data) ? data : []);
+    } catch {
+      setErr(t.errNet);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const fmt = (iso) => {
+    if (!iso) return "—";
+    try {
+      return new Date(iso).toLocaleString(lang === "vi" ? "vi-VN" : "en-US", {
+        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+      });
+    } catch { return "—"; }
+  };
+
+  const stateText = (s) => (s === "answered" ? t.stAnswered : s === "rejected" ? t.stRejected : t.stPending);
+
+  return (
+    <div className="esc-form">
+      <label className="esc-label">{t.askEmail}</label>
+      <div className="esc-row">
+        <input
+          className="esc-input"
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          value={email}
+          onChange={ev => setEmail(ev.target.value)}
+          onKeyDown={ev => { if (ev.key === "Enter") load(); }}
+          placeholder={t.askEmailPh}
+          disabled={busy}
+        />
+        <button className="esc-btn esc-btn-inline" onClick={load} disabled={busy}>
+          {busy ? t.lookupLoading : t.lookupBtn}
+        </button>
+      </div>
+
+      {err && <div className="esc-err">{err}</div>}
+
+      {rows && rows.length === 0 && <div className="esc-empty">{t.lookupEmpty}</div>}
+
+      {rows && rows.length > 0 && (
+        <div className="esc-list">
+          {rows.map(r => {
+            const isOpen = openId === r.ticket_code;
+            const canOpen = r.state === "answered" && r.answer;
+            return (
+              <div key={r.ticket_code} className={"esc-item " + (isOpen ? "is-open" : "")}>
+                <button
+                  className="esc-item-head"
+                  onClick={() => setOpenId(isOpen ? null : r.ticket_code)}
+                  disabled={!canOpen}
+                >
+                  <span className={"esc-pill esc-pill-" + r.state}>{stateText(r.state)}</span>
+                  <span className="esc-item-q">{r.question}</span>
+                  <span className="esc-item-meta">
+                    {r.ticket_code} · {t.askedAt} {fmt(r.created_at)}
+                    {r.answered_at ? " · " + t.answeredAt + " " + fmt(r.answered_at) : ""}
+                  </span>
+                  {canOpen && <span className="esc-item-chev">{isOpen ? "−" : "+"}</span>}
+                </button>
+                {isOpen && canOpen && (
+                  <div
+                    className="esc-item-body msg-prose"
+                    dangerouslySetInnerHTML={{ __html: annotateCitations(mdToHtml(r.answer), null) }}
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============ HỎI CHUYÊN VIÊN — modal bật từ câu trả lời của bot ============
+function EscalateModal({ t, lang, ctx, onClose, onSubmitted }) {
+  useEffect(() => {
+    if (!ctx) return undefined;
+    const onKeyDown = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [ctx, onClose]);
+
+  if (!ctx) return null;
+
+  return (
+    <div className="esc-backdrop" onClick={onClose}>
+      <div className="esc-modal" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
+        <div className="esc-modal-head">
+          <div className="esc-modal-title">{t.modalTitle}</div>
+          <button className="esc-modal-x" onClick={onClose} aria-label={t.modalCancel}>×</button>
+        </div>
+        <p className="esc-note esc-note-lead">{t.modalLead}</p>
+        <EscalateForm
+          t={t}
+          lang={lang}
+          compact
+          source="chat_feedback"
+          presetQuestion={ctx.question}
+          presetBotAnswer={ctx.botAnswer}
+          sessionId={ctx.sessionId}
+          onDone={(code) => onSubmitted(ctx.msgId, code)}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ============ MAIN APP ============
 function App() {
   const [lang, setLang] = useState(() => localStorage.getItem(STORAGE.lang) || "vi");
@@ -837,6 +1154,9 @@ function App() {
   const [view, setView] = useState("chat");
   const [formsLoaded, setFormsLoaded] = useState(false);
   const openForms = () => { setFormsLoaded(true); setView("forms"); setSidebarOpen(false); };
+  // Tab "Hỏi chuyên viên" — gửi câu hỏi khó cho chuyên viên pháp chế và tra kết quả theo email.
+  const openAsk = () => { setView("ask"); setSidebarOpen(false); };
+  const [escalateCtx, setEscalateCtx] = useState(null);
   const [now, setNow] = useState(new Date());
   const [citeReady, setCiteReady] = useState(false); // re-render tin nhắn khi alias tra cứu về
 
@@ -948,6 +1268,30 @@ function App() {
 
   const updateConversation = (id, patch) => {
     setConversations(cs => cs.map(c => c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c));
+  };
+
+  // Bật modal "nhờ chuyên viên" cho một câu trả lời của bot: lấy câu hỏi người
+  // dùng đặt ngay trước đó làm nội dung mặc định, kèm theo câu trả lời chưa đạt
+  // để chuyên viên biết bot đã nói gì.
+  const escalateFromMessage = (botMsg) => {
+    const idx = messages.findIndex(m => m.id === botMsg.id);
+    let q = "";
+    for (let i = idx - 1; i >= 0; i--) {
+      if (messages[i].role === "user") { q = messages[i].content || ""; break; }
+    }
+    setEscalateCtx({
+      msgId: botMsg.id,
+      question: q,
+      botAnswer: botMsg.content || "",
+      sessionId: activeConv?.sessionId || "",
+    });
+  };
+
+  const markEscalated = (msgId, code) => {
+    if (!activeConv) return;
+    updateConversation(activeConv.id, {
+      messages: messages.map(m => (m.id === msgId ? { ...m, escalatedCode: code } : m)),
+    });
   };
 
   const newChat = () => {
@@ -1074,7 +1418,7 @@ function App() {
   const activeShortSession = activeConv?.sessionId ? activeConv.sessionId.slice(-10) : "—";
 
   return (
-    <div className={"app" + (view === "forms" ? " view-forms" : "")} data-screen-label="Chat">
+    <div className={"app" + (view === "forms" ? " view-forms" : "") + (view === "ask" ? " view-ask" : "")} data-screen-label="Chat">
       {/* TOP BAR */}
       <header className="topbar">
         <div className="brand">
@@ -1096,6 +1440,12 @@ function App() {
               role="tab"
               aria-selected={view === "chat"}
             >{t.tabChat}</button>
+            <button
+              className={"view-tab " + (view === "ask" ? "is-active" : "")}
+              onClick={openAsk}
+              role="tab"
+              aria-selected={view === "ask"}
+            >{t.tabAsk}</button>
             <button
               className={"view-tab " + (view === "forms" ? "is-active" : "")}
               onClick={openForms}
@@ -1162,6 +1512,24 @@ function App() {
         </section>
       )}
 
+      {/* ASK TAB — gửi câu hỏi cho chuyên viên pháp chế + tra kết quả theo email */}
+      <section className="ask-view" aria-hidden={view !== "ask"}>
+        <div className="ask-scroll scroll">
+          <div className="ask-inner">
+            <div className="ask-card">
+              <h2 className="ask-h">{t.askHeading}</h2>
+              <p className="ask-lead">{t.askLead}</p>
+              <EscalateForm t={t} lang={lang} source="ask_tab" />
+            </div>
+            <div className="ask-card">
+              <h2 className="ask-h">{t.lookupHeading}</h2>
+              <p className="ask-lead">{t.lookupLead}</p>
+              <EscalateLookup t={t} lang={lang} />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* MAIN */}
       <main className="main">
         <div className="scroll" ref={scrollRef}>
@@ -1171,7 +1539,13 @@ function App() {
             ) : (
               <div className="messages">
                 {messages.map(m => (
-                  <Message key={m.id} msg={m} t={t} onSuggestionClick={(s) => send(s)} />
+                  <Message
+                    key={m.id}
+                    msg={m}
+                    t={t}
+                    onSuggestionClick={(s) => send(s)}
+                    onEscalate={escalateFromMessage}
+                  />
                 ))}
               </div>
             )}
@@ -1250,6 +1624,14 @@ function App() {
           <span className="value">{timeStr}</span>
         </div>
       </footer>
+
+      <EscalateModal
+        t={t}
+        lang={lang}
+        ctx={escalateCtx}
+        onClose={() => setEscalateCtx(null)}
+        onSubmitted={markEscalated}
+      />
     </div>
   );
 }
