@@ -1735,3 +1735,70 @@ pre code { background: none; padding: 0; color: inherit; }
   .esc-pill { justify-self: start; }
 }
 
+/* =====================================================================
+   TOPBAR TRÊN MÀN HÌNH HẸP — 3 tab xuống hàng riêng
+   Trước đây .brand + .view-tabs + VI/EN nằm chung một hàng ngang; tổng bề
+   rộng tối thiểu ~670px nên trên điện thoại hai tab "Hỏi chuyên viên" và
+   "Biểu mẫu" bị đẩy ra ngoài khung và bị .app{overflow:hidden} cắt mất,
+   không cách nào trượt tới. Nay tách topbar thành 2 hàng: hàng 1 brand +
+   VI/EN, hàng 2 là dải tab chiếm hết chiều ngang (còn hẹp hơn nữa thì
+   dải tab tự trượt ngang được).
+   Chiều cao: 52 (hàng 1) + 34 (dải tab) + 8 (margin dưới) = 94px.
+   ===================================================================== */
+@media (max-width: 760px) {
+  :root { --topbar-h: 94px; }
+
+  .topbar {
+    flex-wrap: wrap;
+    align-content: flex-start;
+  }
+  /* Cho 3 con của .topbar-main thành con trực tiếp của .topbar để wrap được */
+  .topbar-main { display: contents; }
+
+  .brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 52px;
+  }
+  .brand-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .topbar-actions {
+    height: 52px;
+    padding-right: 14px;
+    flex-shrink: 0;
+  }
+
+  .view-tabs {
+    order: 3;
+    display: flex;
+    flex: 1 1 100%;
+    min-width: 0;
+    height: 34px;
+    margin: 0 12px 8px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .view-tabs::-webkit-scrollbar { display: none; }
+
+  .view-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 0 auto;
+    padding: 0 12px;
+    font-size: 10.5px;
+  }
+}
+
+/* Máy rất hẹp (≤359px, kiểu iPhone SE đời đầu): bóp chữ/đệm để 3 tab vẫn
+   vừa một hàng, không phải trượt. */
+@media (max-width: 359px) {
+  .view-tabs { margin-left: 8px; margin-right: 8px; }
+  .view-tab { padding: 0 7px; letter-spacing: 0.04em; }
+}
+
