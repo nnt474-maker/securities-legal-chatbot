@@ -7,11 +7,14 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 // được. n8n đã mở CORS (phản hồi access-control-allow-origin theo Origin) nên
 // gọi thẳng từ domain Vercel không bị chặn.
 const WEBHOOK_URL = "https://n8n.phs.vn/webhook/PHS-legal-chat";
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.3.0";
 // Tra cứu trích dẫn (tooltip điều/khoản) — gọi RPC read-only trên Supabase.
 // Anon key là khóa CÔNG KHAI (publishable, RLS bật); service key không bao giờ ra frontend.
 const SUPA_URL = "https://tuodyjkqexttioluwavi.supabase.co";
 const SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR1b2R5amtxZXh0dGlvbHV3YXZpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYwNTAzNjUsImV4cCI6MjA3MTYyNjM2NX0.VMIbw3BKK5uj8r6825B2XLFV7wHahZ73jCjnjgrkMf8";
+// Trang "Bản tin pháp lý" của Khối Pháp lý — Cloudflare Worker phs-legal, dữ liệu
+// nằm ở D1 `phs_legal_bulletin`. Nhúng iframe vào tab riêng của chatbot.
+const BULLETIN_URL = "https://phs-legal.phs-vn.workers.dev/";
 // Quy mô kho văn bản hiển thị ở màn hình chào + thanh trạng thái.
 // Cập nhật tay khi nạp thêm văn bản (xem bảng legal_source_catalog).
 const CORPUS = { docs: 70, chunks: 6352 };
@@ -89,8 +92,18 @@ const I18N = {
     tabChat: "Trợ lý pháp lý",
     tabForms: "Biểu mẫu",
     tabAsk: "Hỏi chuyên viên",
+    tabBulletin: "Bản tin pháp lý",
     escalateBtn: "Nhờ chuyên viên trả lời kỹ",
     escalateDone: "✓ Đã chuyển chuyên viên",
+    // Dải CTA nổi bật ngay dưới câu trả lời của bot, ĐẶT TRÊN các câu hỏi gợi ý
+    // (góp ý của team 08-2026: nút cũ nằm cuối cùng nên gần như không ai thấy).
+    escalateCtaTitle: "Câu trả lời chưa đủ? Để chuyên viên pháp chế trả lời",
+    escalateCtaLead: "Chuyên viên Khối Pháp lý PHS đọc trực tiếp câu hỏi của bạn, soạn câu trả lời và gửi vào email.",
+    escalateCtaDone: "Đã chuyển chuyên viên pháp chế",
+    escalateCtaDoneLead: "Mã câu hỏi của bạn",
+    welcomeAskTitle: "Câu hỏi khó, cần chuyên viên đọc trực tiếp?",
+    welcomeAskLead: "Tình huống phức tạp, phải đối chiếu nhiều văn bản — gửi thẳng cho chuyên viên pháp chế PHS.",
+    welcomeAskBtn: "Hỏi chuyên viên",
     askHeading: "Hỏi chuyên viên pháp chế",
     askLead: "Câu hỏi khó, cần đối chiếu nhiều văn bản? Gửi tại đây. Chuyên viên pháp chế PHS trực tiếp đọc và soạn câu trả lời — kết quả gửi vào email bạn nhập, đồng thời xem lại được ở mục tra cứu bên dưới.",
     askEmail: "Email nhận kết quả",
@@ -194,8 +207,16 @@ const I18N = {
     tabChat: "Legal Assistant",
     tabForms: "Forms",
     tabAsk: "Ask an Expert",
+    tabBulletin: "Legal Bulletin",
     escalateBtn: "Ask an expert for a fuller answer",
     escalateDone: "✓ Sent to an expert",
+    escalateCtaTitle: "Answer not enough? Let a legal counsel take it",
+    escalateCtaLead: "A PHS Legal Division counsel reads your question, writes the answer and sends it to your email.",
+    escalateCtaDone: "Sent to a legal counsel",
+    escalateCtaDoneLead: "Your ticket code",
+    welcomeAskTitle: "A hard question that needs a human counsel?",
+    welcomeAskLead: "Complex situations that need several documents cross-checked — send it straight to a PHS legal counsel.",
+    welcomeAskBtn: "Ask an expert",
     askHeading: "Ask a PHS legal counsel",
     askLead: "Difficult question that needs several documents cross-checked? Send it here. A PHS legal counsel reads it and writes the answer personally — the result goes to the email you enter and also shows up in the lookup section below.",
     askEmail: "Email for the answer",
@@ -734,6 +755,9 @@ const Icon = {
   Menu: () => <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>,
   Shield: () => <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
   Arrow: () => <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg>,
+  // Chuyên viên pháp chế (CTA "Hỏi chuyên viên")
+  Expert: () => <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>,
+  Check: () => <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>,
 };
 
 // ============ COMPONENTS ============
@@ -802,6 +826,32 @@ function Message({ msg, t, onSuggestionClick, onEscalate }) {
         ) : (
           <>
             <div className="msg-prose" dangerouslySetInnerHTML={{ __html: annotateCitations(mdToHtml(msg.content), msg.cites) }} />
+            {/* CTA "Hỏi chuyên viên" — đặt ngay dưới câu trả lời và TRÊN các câu hỏi
+                gợi ý, vì nút cũ nằm cuối cùng nên người dùng gần như không thấy. */}
+            {msg.content && (
+              msg.escalatedCode ? (
+                <div className="escalate-cta is-done">
+                  <div className="escalate-cta-icon" aria-hidden="true"><Icon.Check /></div>
+                  <div className="escalate-cta-text">
+                    <div className="escalate-cta-title">{t.escalateCtaDone}</div>
+                    <div className="escalate-cta-lead">
+                      {t.escalateCtaDoneLead}: <code>{msg.escalatedCode}</code>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="escalate-cta">
+                  <div className="escalate-cta-icon" aria-hidden="true"><Icon.Expert /></div>
+                  <div className="escalate-cta-text">
+                    <div className="escalate-cta-title">{t.escalateCtaTitle}</div>
+                    <div className="escalate-cta-lead">{t.escalateCtaLead}</div>
+                  </div>
+                  <button className="escalate-cta-btn" onClick={() => onEscalate(msg)}>
+                    {t.escalateBtn}
+                  </button>
+                </div>
+              )
+            )}
             {msg.suggestions && msg.suggestions.length > 0 && (
               <div className="related">
                 <div className="related-label">{t.relatedLabel}</div>
@@ -820,13 +870,6 @@ function Message({ msg, t, onSuggestionClick, onEscalate }) {
                 <button className="action-btn" onClick={copy}>
                   {copied ? "✓ " + t.copied : t.copy}
                 </button>
-                {msg.escalatedCode ? (
-                  <span className="action-done">{t.escalateDone} · {msg.escalatedCode}</span>
-                ) : (
-                  <button className="action-btn action-escalate" onClick={() => onEscalate(msg)}>
-                    {t.escalateBtn}
-                  </button>
-                )}
               </div>
             )}
           </>
@@ -868,7 +911,7 @@ function StatCell({ value, label, lang }) {
   );
 }
 
-function Welcome({ t, lang, onSuggestion }) {
+function Welcome({ t, lang, onSuggestion, onAskExpert }) {
   return (
     <div className="welcome">
       <div className="aura aura-a"></div>
@@ -895,6 +938,20 @@ function Welcome({ t, lang, onSuggestion }) {
           <div className="stat-label">{t.statLang}</div>
         </div>
       </div>
+
+      {/* Lối vào "Hỏi chuyên viên" đặt TRÊN các câu hỏi gợi ý — người dùng biết
+          ngay là có kênh người thật, không phải kéo xuống cuối mới thấy. */}
+      <button className="welcome-ask fx fx-5" onClick={onAskExpert}>
+        <span className="welcome-ask-icon" aria-hidden="true"><Icon.Expert /></span>
+        <span className="welcome-ask-text">
+          <span className="welcome-ask-title">{t.welcomeAskTitle}</span>
+          <span className="welcome-ask-lead">{t.welcomeAskLead}</span>
+        </span>
+        <span className="welcome-ask-btn">
+          {t.welcomeAskBtn}
+          <Icon.Arrow />
+        </span>
+      </button>
 
       <div className="suggest-header fx fx-5">
         <div className="suggest-title">{t.suggestionsLabel}</div>
@@ -1154,6 +1211,10 @@ function App() {
   const [view, setView] = useState("chat");
   const [formsLoaded, setFormsLoaded] = useState(false);
   const openForms = () => { setFormsLoaded(true); setView("forms"); setSidebarOpen(false); };
+  // Tab "Bản tin pháp lý" — nhúng trang bản tin của Khối Pháp lý (Cloudflare Worker
+  // phs-legal, dữ liệu D1). Cùng cơ chế lazy-load như tab Biểu mẫu.
+  const [bulletinLoaded, setBulletinLoaded] = useState(false);
+  const openBulletin = () => { setBulletinLoaded(true); setView("bulletin"); setSidebarOpen(false); };
   // Tab "Hỏi chuyên viên" — gửi câu hỏi khó cho chuyên viên pháp chế và tra kết quả theo email.
   const openAsk = () => { setView("ask"); setSidebarOpen(false); };
   const [escalateCtx, setEscalateCtx] = useState(null);
@@ -1418,7 +1479,7 @@ function App() {
   const activeShortSession = activeConv?.sessionId ? activeConv.sessionId.slice(-10) : "—";
 
   return (
-    <div className={"app" + (view === "forms" ? " view-forms" : "") + (view === "ask" ? " view-ask" : "")} data-screen-label="Chat">
+    <div className={"app" + (view === "forms" ? " view-forms" : "") + (view === "ask" ? " view-ask" : "") + (view === "bulletin" ? " view-bulletin" : "")} data-screen-label="Chat">
       {/* TOP BAR */}
       <header className="topbar">
         <div className="brand">
@@ -1446,6 +1507,12 @@ function App() {
               role="tab"
               aria-selected={view === "ask"}
             >{t.tabAsk}</button>
+            <button
+              className={"view-tab " + (view === "bulletin" ? "is-active" : "")}
+              onClick={openBulletin}
+              role="tab"
+              aria-selected={view === "bulletin"}
+            >{t.tabBulletin}</button>
             <button
               className={"view-tab " + (view === "forms" ? "is-active" : "")}
               onClick={openForms}
@@ -1505,6 +1572,18 @@ function App() {
         </div>
       </aside>
 
+      {/* BẢN TIN PHÁP LÝ (Cloudflare Worker phs-legal — dữ liệu D1 phs_legal_bulletin) */}
+      {bulletinLoaded && (
+        <section className="bulletin-view" aria-hidden={view !== "bulletin"}>
+          <iframe
+            className="bulletin-frame"
+            src={BULLETIN_URL}
+            title={t.tabBulletin}
+            referrerPolicy="no-referrer"
+          />
+        </section>
+      )}
+
       {/* FORMS TAB (Teller Portal, luôn giữ mounted sau lần mở đầu) */}
       {formsLoaded && (
         <section className="forms-view" aria-hidden={view !== "forms"}>
@@ -1535,7 +1614,7 @@ function App() {
         <div className="scroll" ref={scrollRef}>
           <div className="container">
             {!hasMessages ? (
-              <Welcome t={t} lang={lang} onSuggestion={(s) => send(s)} />
+              <Welcome t={t} lang={lang} onSuggestion={(s) => send(s)} onAskExpert={openAsk} />
             ) : (
               <div className="messages">
                 {messages.map(m => (

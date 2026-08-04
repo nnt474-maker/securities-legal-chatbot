@@ -1402,20 +1402,26 @@ pre code { background: none; padding: 0; color: inherit; }
 }
 .view-tab.is-active { background: var(--brand); color: #fff; }
 
-.forms-view {
+.forms-view,
+.bulletin-view {
   grid-column: 1 / -1;
   grid-row: 2;
   min-height: 0;
   background: #fff;
 }
-.forms-view[aria-hidden="true"] { display: none; }
-.forms-frame { display: block; width: 100%; height: 100%; border: 0; }
+.forms-view[aria-hidden="true"],
+.bulletin-view[aria-hidden="true"] { display: none; }
+.forms-frame,
+.bulletin-frame { display: block; width: 100%; height: 100%; border: 0; }
 
 .app.view-forms .sidebar,
-.app.view-forms .main { display: none; }
+.app.view-forms .main,
+.app.view-bulletin .sidebar,
+.app.view-bulletin .main { display: none; }
 
 @media (max-width: 880px) {
-  .app.view-forms .sidebar { display: none !important; }
+  .app.view-forms .sidebar,
+  .app.view-bulletin .sidebar { display: none !important; }
   .view-tab { padding: 4px 10px; }
 }
 
@@ -1432,23 +1438,159 @@ pre code { background: none; padding: 0; color: inherit; }
 .msg-bot .action-btn { opacity: 0; transition: opacity 0.18s, color 0.12s, background 0.12s; }
 .msg-bot:hover .action-btn,
 .msg-bot:focus-within .action-btn { opacity: 1; }
-.msg-bot .action-escalate { opacity: 1; }
 @media (hover: none) {
   .msg-bot .action-btn { opacity: 1; }
 }
-.action-escalate {
-  color: var(--gold);
-  border: 1px solid #EADFC4;
-  background: #FDFAF2;
+
+/* --- CTA "Hoi chuyen vien" ngay duoi cau tra loi, TREN cac cau hoi goi y ---
+   Team gop y (08-2026): nut cu la mot action-btn nho nam duoi cung, sau ca
+   khoi cau hoi goi y, nen gan nhu khong ai bam. Doi thanh mot dai CTA co
+   vien vang, luon hien, dat truoc khoi .related. */
+.escalate-cta {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #FDFAF2, #FBF6EA);
+  border: 1px solid #E7DCC2;
+  border-left: 3px solid var(--gold);
+  border-radius: var(--r);
 }
-.action-escalate:hover { color: #8A6A16; background: #FBF3E2; }
-.action-done {
+.escalate-cta-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #F5EAD1;
+  color: #8A6A16;
+  flex: none;
+}
+.escalate-cta-text { min-width: 0; }
+.escalate-cta-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #6E5411;
+  line-height: 1.35;
+}
+.escalate-cta-lead {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #8A7440;
+}
+.escalate-cta-lead code {
   font-family: var(--mono);
-  font-size: 10.5px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
+  font-size: 12px;
+  font-weight: 600;
   color: var(--green);
-  padding: 4px 8px;
+}
+.escalate-cta-btn {
+  flex: none;
+  padding: 9px 16px;
+  border-radius: var(--r-sm);
+  background: var(--gold);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(110, 84, 17, 0.18);
+  transition: background 0.12s, transform 0.12s, box-shadow 0.12s;
+}
+.escalate-cta-btn:hover {
+  background: #96701F;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px -4px rgba(110, 84, 17, 0.5);
+}
+.escalate-cta-btn:active { transform: translateY(0); }
+
+/* Trang thai da chuyen chuyen vien */
+.escalate-cta.is-done {
+  grid-template-columns: auto 1fr;
+  background: #F2FAF5;
+  border-color: #CFE9D9;
+  border-left-color: var(--green);
+}
+.escalate-cta.is-done .escalate-cta-icon { background: #DCF0E4; color: var(--green); }
+.escalate-cta.is-done .escalate-cta-title { color: #0B5F33; }
+.escalate-cta.is-done .escalate-cta-lead { color: #4C7A61; }
+
+@media (max-width: 640px) {
+  .escalate-cta {
+    grid-template-columns: auto 1fr;
+    row-gap: 10px;
+  }
+  .escalate-cta-btn { grid-column: 1 / -1; width: 100%; text-align: center; }
+}
+
+/* --- Loi vao "Hoi chuyen vien" tren man hinh chao (tren khoi cau hoi goi y) --- */
+.welcome-ask {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 13px 15px;
+  text-align: left;
+  background: linear-gradient(180deg, #FDFAF2, #FAF4E6);
+  border: 1px solid #E7DCC2;
+  border-left: 3px solid var(--gold);
+  border-radius: var(--r);
+  transition: border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+}
+.welcome-ask:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px -10px rgba(110, 84, 17, 0.4);
+}
+.welcome-ask:active { transform: translateY(0); }
+.welcome-ask-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #F5EAD1;
+  color: #8A6A16;
+  flex: none;
+}
+.welcome-ask-text { min-width: 0; display: block; }
+.welcome-ask-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6E5411;
+  line-height: 1.35;
+}
+.welcome-ask-lead {
+  display: block;
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #8A7440;
+}
+.welcome-ask-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--r-sm);
+  background: var(--gold);
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.welcome-ask:hover .welcome-ask-btn { background: #96701F; }
+
+@media (max-width: 640px) {
+  .welcome-ask { grid-template-columns: auto 1fr; row-gap: 10px; }
+  .welcome-ask-btn { grid-column: 1 / -1; justify-content: center; }
 }
 
 /* --- Khung tab --- */
