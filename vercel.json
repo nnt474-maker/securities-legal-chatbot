@@ -1,6 +1,13 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "destination": "https://phs-legal-app.phs-vn.workers.dev/",
+      "permanent": true
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
